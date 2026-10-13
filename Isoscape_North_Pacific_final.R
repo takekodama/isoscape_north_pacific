@@ -809,8 +809,12 @@ FigureS02 <- ggplot(pom_surface_summer_rev, aes(x = sal, y = temp)) +
 ggsave("./output/FigureS02.pdf", plot = FigureS02, width = 300, height = 150, units = "mm")
 
 # --- Figure S03: Frequentist GAM Analysis for Fish d15N ---
-fish_d15N_gam <- gam(d15N ~ s(long, lat) + d15NPOM + BodyLength, data = fish_SI_dropna)
+fish_d15N_gam <- gam(d15N ~ s(long, lat) + d15NPOM + BodyLength + temp + sal + log10(chla) + nitrate,
+                     data = fish_SI_dropna)
 dredge(fish_d15N_gam)
+
+fish_d15N_gam <- gam(d15N ~ s(long, lat) + d15NPOM + BodyLength + temp + sal + nitrate,
+                     data = fish_SI_dropna)
 
 fish_d15N_gam_viz <- getViz(fish_d15N_gam)
 summary(fish_d15N_gam)
@@ -831,59 +835,62 @@ figureS03A <- plot(sm(fish_d15N_gam_viz, 1))$ggObj$data %>%
 figureS03B <- ggplot(data = plot(pterm(fish_d15N_gam_viz, 1))$data$res, aes(x = x, y = y)) +
   geom_point(size = 0.5) + stat_smooth(method = "lm") +
   theme_pubr(legend = "right") +
-  labs(x = "POM d15N (‰)", y = "Effect on Fish d15N (‰)")
+  labs(x = "POM d15N (‰)", y = "Effect on Fish d15N (‰)")+ 
+  theme(
+    aspect.ratio = 1,
+    axis.text    = element_text(size = 8),
+    axis.title   = element_text(size = 9)
+  )
 
 figureS03C <- ggplot(data = plot(pterm(fish_d15N_gam_viz, 2))$data$res, aes(x = x, y = y)) +
   geom_point(size = 0.5) + stat_smooth(method = "lm") +
   theme_pubr(legend = "right") +
-  labs(x = "Body Length (mm)", y = "Effect on Fish d15N (‰)")
+  labs(x = "Body Length (mm)", y = "Effect on Fish d15N (‰)")+ 
+  theme(
+    aspect.ratio = 1,
+    axis.text    = element_text(size = 8),
+    axis.title   = element_text(size = 9)
+  )
 
-figureS03 <- wrap_plots(A = figureS03A, B = figureS03B, C = figureS03C, design = "AAAA\nAAAA\nBBCC\nBBCC")
-ggsave("./output/figureS03.pdf", plot = figureS03, width = 160, height = 160, units = "mm")
+figureS03D <- ggplot(data = plot(pterm(fish_d15N_gam_viz, 3))$data$res, aes(x = x, y = y)) +
+  geom_point(size = 0.5) + stat_smooth(method = "lm") +
+  theme_pubr(legend = "right") +
+  labs(x = "Temperature (°C)", y = "Effect on Fish d15N (‰)")+ 
+  theme(
+    aspect.ratio = 1,
+    axis.text    = element_text(size = 8),
+    axis.title   = element_text(size = 9)
+  )
 
-# --- Figure S04: Fish Isoscape Predictions & Trophic Transfer Diagnostics ---
-mean_bl <- mean(fish_SI_dropna$BodyLength, na.rm = TRUE)
+figureS03E <- ggplot(data = plot(pterm(fish_d15N_gam_viz, 4))$data$res, aes(x = x, y = y)) +
+  geom_point(size = 0.5) + stat_smooth(method = "lm") +
+  theme_pubr(legend = "right") +
+  labs(x = "Salinity", y = "Effect on Fish d15N (‰)")+ 
+  theme(
+    aspect.ratio = 1,
+    axis.text    = element_text(size = 8),
+    axis.title   = element_text(size = 9)
+  )
 
-newdata_fixed_bl <- fish_SI_dropna %>% mutate(BodyLength = mean_bl)
-pred_fixed_bl    <- predict(fish_d15N_gam, newdata = newdata_fixed_bl, se.fit = TRUE)
-newdata_fixed_bl <- newdata_fixed_bl %>% mutate(fit = pred_fixed_bl$fit, se_fit = pred_fixed_bl$se.fit)
+figureS03F <- ggplot(data = plot(pterm(fish_d15N_gam_viz, 5))$data$res, aes(x = x, y = y)) +
+  geom_point(size = 0.5) + stat_smooth(method = "lm") +
+  theme_pubr(legend = "right") +
+  labs(x = "Nitrate (µM)", y = "Effect on Fish d15N (‰)")　+ 
+  theme(
+    aspect.ratio = 1,
+    axis.text    = element_text(size = 8),
+    axis.title   = element_text(size = 9)
+  )
 
-fish_d15N_isocape <- interrep_pom_surface_summer_rev %>% 
-  select(long, lat, d15NPOM = d15N, chla, temp) %>% 
-  mutate(BodyLength = 200)
+figureS03 <- wrap_plots(
+  A = figureS03A,
+  B = figureS03B,
+  C = figureS03C,
+  D = figureS03D,
+  E = figureS03E,
+  F = figureS03F,
+  design = design_layout_s03,
+  heights = c(1.1, 1, 1) # Aの高さ割合を圧縮（1.1 : 1 : 1）
+)
 
-fish_d15N_isocape$d15Nfish <- predict.gam(object = fish_d15N_gam, newdata = fish_d15N_isocape)
-
-figureS04 <- ggplot(fish_d15N_isocape) +
-  rasterise(geom_point(aes(x = long, y = lat, color = d15Nfish), shape = 15), dpi = 300) +
-  scale_color_gradientn(colours = colors_rev) +
-  geom_point(data = fish_SI_dropna, aes(x = long, y = lat), size = 2) + 
-  geom_point(data = pom_surface_summer_rev, aes(x = long, y = lat), size = 0.5, shape = 1) + 
-  geom_base_map +
-  coord_sf(xlim = c(120, 200), ylim = c(20, 50), expand = 0) +
-  theme_pubr(legend = "bottom") +
-  labs(fill = "spline", x = "Longitude (°E)", y = "Latitude (°N)") +
-  guides(color = guide_colorbar(barwidth = 8, barheight = 1)) +
-  ggplot(fish_d15N_isocape) +
-  rasterise(geom_point(aes(x = long, y = lat, color = (d15Nfish - d15NPOM) / 3.4), shape = 15), dpi = 300) +
-  scale_color_gradientn(colours = colors_rev, limits = c(0, 3), breaks = seq(0, 3, 1), oob = scales::squish) +
-  geom_point(data = fish_SI_dropna, aes(x = long, y = lat), size = 2) + 
-  geom_point(data = pom_surface_summer_rev, aes(x = long, y = lat), size = 0.5, shape = 1) + 
-  geom_base_map +
-  coord_sf(xlim = c(120, 200), ylim = c(20, 50), expand = 0) +
-  theme_pubr(legend = "bottom") +
-  labs(fill = "spline", x = "Longitude (°E)", y = "Latitude (°N)") +
-  guides(color = guide_colorbar(barwidth = 8, barheight = 1)) +
-  plot_layout(ncol = 1)
-
-ggsave("./output/figureS04.pdf", plot = figureS04, width = 200, height = 250, units = "mm")
-
-# Diagnostic Correlation Checks
-ggplot(fish_d15N_isocape) + geom_point(aes(x = chla, y = d15Nfish - d15NPOM))
-
-ggplot(data = fish_SI_dropna, aes(x = chla, y = d15N - d15NPOM)) +
-  geom_point() + stat_smooth(method = "lm") + labs(x = "Chla (mg/m3)", y = "Δd15N (‰)") + theme_pubr(legend = "bottom") +
-  ggplot(data = fish_SI_dropna, aes(x = temp, y = d15N - d15NPOM)) +
-  geom_point() + stat_smooth(method = "lm") + labs(x = "Temperature (°C)", y = "Δd15N (‰)") + theme_pubr(legend = "bottom")
-
-ggplot(fish_SI_dropna, aes(x = d15NPOM, y = d15N)) + geom_point() + stat_smooth(method = "lm")
+ggsave("./output/figureS03.pdf", plot = figureS03, width = 210, height = 210, units = "mm")
